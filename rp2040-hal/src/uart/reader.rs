@@ -128,7 +128,7 @@ pub(crate) fn read_raw<'b, D: UartDevice>(
         }
 
         if bytes_read < buffer.len() {
-            let mut error: Option<ReadErrorType> = None;
+            let error: Option<ReadErrorType> = None;
 
             let read = device.uartdr().read();
 
@@ -136,15 +136,15 @@ pub(crate) fn read_raw<'b, D: UartDevice>(
             // the most serious or most specific condition,
             // in the following order of precedence:
             // overrun > break > parity > framing
-            if read.oe().bit_is_set() {
-                error = Some(ReadErrorType::Overrun);
-            } else if read.be().bit_is_set() {
-                error = Some(ReadErrorType::Break);
-            } else if read.pe().bit_is_set() {
-                error = Some(ReadErrorType::Parity);
-            } else if read.fe().bit_is_set() {
-                error = Some(ReadErrorType::Framing);
-            }
+            // if read.oe().bit_is_set() {
+            //     error = Some(ReadErrorType::Overrun);
+            // } else if read.be().bit_is_set() {
+            //     error = Some(ReadErrorType::Break);
+            // } else if read.pe().bit_is_set() {
+            //     error = Some(ReadErrorType::Parity);
+            // } else if read.fe().bit_is_set() {
+            //     error = Some(ReadErrorType::Framing);
+            // }
 
             if let Some(err_type) = error {
                 return Err(Other(ReadError {
