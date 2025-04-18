@@ -160,18 +160,18 @@ pub(crate) fn read_raw<'b, D: UartDevice>(
             // break > parity > framing
             //
             // overrun is last because the byte associated with it is still good.
-            if read.be().bit_is_set() {
-                error = Some(ReadErrorType::Break);
-            } else if read.pe().bit_is_set() {
-                error = Some(ReadErrorType::Parity);
-            } else if read.fe().bit_is_set() {
-                error = Some(ReadErrorType::Framing);
-            } else if read.oe().bit_is_set() {
-                error = Some(ReadErrorType::Overrun);
-                // if we get an overrun - there's still data there
-                buffer[bytes_read] = read.data().bits();
-                bytes_read += 1;
-            }
+            // if read.be().bit_is_set() {
+            //     error = Some(ReadErrorType::Break);
+            // } else if read.pe().bit_is_set() {
+            //     error = Some(ReadErrorType::Parity);
+            // } else if read.fe().bit_is_set() {
+            //     error = Some(ReadErrorType::Framing);
+            // } else if read.oe().bit_is_set() {
+            //     error = Some(ReadErrorType::Overrun);
+            //     // if we get an overrun - there's still data there
+            //     buffer[bytes_read] = read.data().bits();
+            //     bytes_read += 1;
+            // }
 
             if let Some(err_type) = error {
                 return Err(Other(ReadError {
