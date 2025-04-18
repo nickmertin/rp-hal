@@ -19,40 +19,42 @@ targets = ["thumbv6m-none-eabi"]
 
 [dependencies]
 # Non-optional dependencies. Keep these sorted by name.
-bitfield = {version = "0.14.0"}
+bitfield = { version = "0.19.0" }
 cortex-m = "0.7.2"
-critical-section = {version = "1.2.0"}
+critical-section = { version = "1.2.0" }
 embedded-dma = "0.2.0"
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
 embedded-hal-nb = "1.0.0"
 embedded-io = "0.6.1"
-embedded_hal_0_2 = {package = "embedded-hal", version = "0.2.5", features = ["unproven"]}
-frunk = {version = "0.4.1", default-features = false}
+embedded_hal_0_2 = { package = "embedded-hal", version = "0.2.5", features = [
+    "unproven",
+] }
+frunk = { version = "0.4.1", default-features = false }
 fugit = "0.3.6"
-itertools = {version = "0.10.1", default-features = false}
-nb = "1.0"
+itertools = { version = "0.14.0", default-features = false }
+nb = "1.1.0"
 paste = "1.0"
-pio = "0.2.0"
-rand_core = "0.6.3"
+pio = "0.3.0"
+rand_core = "0.9.3"
 rp-binary-info = { version = "0.1.0", path = "../rp-binary-info" }
-rp-hal-common = {version="0.1.0", path="../rp-hal-common"}
-rp2040-hal-macros = {version = "0.1.0", path = "../rp2040-hal-macros"}
-rp2040-pac = {version = "0.6.0", features = ["critical-section"]}
+rp-hal-common = { version = "0.1.0", path = "../rp-hal-common" }
+rp2040-hal-macros = { version = "0.1.0", path = "../rp2040-hal-macros" }
+rp2040-pac = { version = "0.6.0", features = ["critical-section"] }
 usb-device = "0.3"
 vcell = "0.1"
-void = {version = "1.0.2", default-features = false}
+void = { version = "1.0.2", default-features = false }
 
 # Optional dependencies. Keep these sorted by name.
-chrono = {version = "0.4", default-features = false, optional = true}
-defmt = {version = ">=0.2.0, <0.4", optional = true}
-i2c-write-iter = {version = "1.0.0", features = ["async"], optional = true}
-rtic-monotonic = {version = "1.0.0", optional = true}
+chrono = { version = "0.4", default-features = false, optional = true }
+defmt = { version = ">=0.2.0, <0.4", optional = true }
+i2c-write-iter = { version = "1.0.0", features = ["async"], optional = true }
+rtic-monotonic = { version = "1.0.0", optional = true }
 
 [dev-dependencies]
 # Non-optional dependencies. Keep these sorted by name.
-pio-proc = "0.2.0"
-rand = {version = "0.8.5", default-features = false}
+pio-proc = "0.3.0"
+rand = { version = "0.9.1", default-features = false }
 
 # Optional dependencies. Keep these sorted by name.
 # None
