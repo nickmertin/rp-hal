@@ -1,6 +1,6 @@
 //! Inter-Integrated Circuit (I2C) bus
 //!
-//! See [Chapter 4 Section 3](https://datasheets.raspberrypi.org/rp2040/rp2040_datasheet.pdf) for more details
+//! See [Chapter 4 Section 3](https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf) for more details
 //!
 //! ## Usage
 //! ```no_run
@@ -40,13 +40,13 @@
 //! i2c.write_read(0x2Cu8, &[1, 2, 3], &mut readbuf).unwrap();
 //! ```
 //!
-//! See [examples/i2c.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples/i2c.rs)
+//! See [examples/i2c.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples/src/bin/i2c.rs)
 //! for a complete example
 //!
 //! ## Async Usage
 //!
-//! See [examples/i2c_async.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples/i2c_async.rs)
-//! and [examples/i2c_async_irq.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples/i2c_async_irq.rs)
+//! See [examples/i2c_async.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples/src/bin/i2c_async.rs)
+//! and [examples/i2c_async_irq.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples/src/bin/i2c_async_irq.rs)
 //! for complete examples.
 
 use core::{marker::PhantomData, ops::Deref};
@@ -170,21 +170,21 @@ impl defmt::Format for Error {
 impl embedded_hal::i2c::Error for Error {
     fn kind(&self) -> embedded_hal::i2c::ErrorKind {
         match &self {
-            Error::Abort(v) if v & 1<<12 != 0 // ARB_LOST
+            Error::Abort(v) if v & (1<<12) != 0 // ARB_LOST
                 => embedded_hal::i2c::ErrorKind::ArbitrationLoss,
-            Error::Abort(v) if v & 1<<7 != 0 // ABRT_SBYTE_ACKDET
+            Error::Abort(v) if v & (1<<7) != 0 // ABRT_SBYTE_ACKDET
                 => embedded_hal::i2c::ErrorKind::Bus,
-            Error::Abort(v) if v & 1<<6 != 0 // ABRT_HS_ACKDET
+            Error::Abort(v) if v & (1<<6) != 0 // ABRT_HS_ACKDET
                 => embedded_hal::i2c::ErrorKind::Bus,
-            Error::Abort(v) if v & 1<<4 != 0 // ABRT_GCALL_NOACK
+            Error::Abort(v) if v & (1<<4) != 0 // ABRT_GCALL_NOACK
                 => embedded_hal::i2c::ErrorKind::NoAcknowledge(embedded_hal::i2c::NoAcknowledgeSource::Address),
-            Error::Abort(v) if v & 1<<3 != 0 // ABRT_TXDATA_NOACK
+            Error::Abort(v) if v & (1<<3) != 0 // ABRT_TXDATA_NOACK
                 => embedded_hal::i2c::ErrorKind::NoAcknowledge(embedded_hal::i2c::NoAcknowledgeSource::Data),
-            Error::Abort(v) if v & 1<<2 != 0 // ABRT_10ADDR2_NOACK
+            Error::Abort(v) if v & (1<<2) != 0 // ABRT_10ADDR2_NOACK
                 => embedded_hal::i2c::ErrorKind::NoAcknowledge(embedded_hal::i2c::NoAcknowledgeSource::Address),
-            Error::Abort(v) if v & 1<<1 != 0 // ABRT_10ADDR1_NOACK
+            Error::Abort(v) if v & (1<<1) != 0 // ABRT_10ADDR1_NOACK
                 => embedded_hal::i2c::ErrorKind::NoAcknowledge(embedded_hal::i2c::NoAcknowledgeSource::Address),
-            Error::Abort(v) if v & 1<<0 != 0 // ABRT_7B_ADDR_NOACK
+            Error::Abort(v) if v & (1<<0) != 0 // ABRT_7B_ADDR_NOACK
                 => embedded_hal::i2c::ErrorKind::NoAcknowledge(embedded_hal::i2c::NoAcknowledgeSource::Address),
             _ => embedded_hal::i2c::ErrorKind::Other,
         }

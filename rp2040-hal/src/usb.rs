@@ -1,5 +1,7 @@
 //! Universal Serial Bus (USB)
-// See [Chapter 4 Section 1](https://datasheets.raspberrypi.org/rp2040/rp2040_datasheet.pdf) for more details
+//!
+//! See [Chapter 4 Section 1](https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf) for more details.
+//!
 //! ## Usage
 //!
 //! Initialize the Usb Bus forcing the VBUS detection.
@@ -254,7 +256,7 @@ impl Inner {
             // size in 64bytes units.
             // NOTE: the compiler is smart enough to recognize /64 as a 6bit right shift so let's
             // keep the division here for the sake of clarity
-            let aligned_sized = (max_packet_size + 63) / 64;
+            let aligned_sized = max_packet_size.div_ceil(64);
             if (self.next_offset + aligned_sized) > (4096 / 64) {
                 return Err(UsbError::EndpointMemoryOverflow);
             }

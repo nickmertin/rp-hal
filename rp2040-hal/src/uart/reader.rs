@@ -121,7 +121,29 @@ pub(crate) fn read_raw<'b, D: UartDevice>(
     Ok(loop {
         if !is_readable(device) {
             if bytes_read == 0 {
-                return Err(WouldBlock);
+                // The overrun error (OE) bit is checked separately as it
+                // doesn't really correspond to a specific byte we've read. If
+                // we don't do this here, the overrun error is hidden until the
+                // next byte turns up - which may never happen.
+                if device.uartrsr().read().oe().bit_is_set() {
+                    // We observed a FIFO overrun on an empty FIFO. Clear the
+                    // error otherwise it sticks.
+                    unsafe {
+                        device.uartrsr().write_with_zero(|w| w);
+                    }
+                    // Now report the error.
+                    //
+                    // Note that you will also get an overrun error on the first
+                    // byte that turns up after this error - we can't stop that
+                    // as we have no mutable state to indicate that it's already
+                    // been handled. But two overrun errors is better that none.
+                    return Err(Other(ReadError {
+                        err_type: ReadErrorType::Overrun,
+                        discarded: &buffer[..bytes_read],
+                    }));
+                } else {
+                    return Err(WouldBlock);
+                }
             } else {
                 break bytes_read;
             }
@@ -135,16 +157,21 @@ pub(crate) fn read_raw<'b, D: UartDevice>(
             // If multiple status bits are set, report
             // the most serious or most specific condition,
             // in the following order of precedence:
-            // overrun > break > parity > framing
-            // if read.oe().bit_is_set() {
-            //     error = Some(ReadErrorType::Overrun);
-            // } else if read.be().bit_is_set() {
-            //     error = Some(ReadErrorType::Break);
-            // } else if read.pe().bit_is_set() {
-            //     error = Some(ReadErrorType::Parity);
-            // } else if read.fe().bit_is_set() {
-            //     error = Some(ReadErrorType::Framing);
-            // }
+            // break > parity > framing
+            //
+            // overrun is last because the byte associated with it is still good.
+            if read.be().bit_is_set() {
+                error = Some(ReadErrorType::Break);
+            } else if read.pe().bit_is_set() {
+                error = Some(ReadErrorType::Parity);
+            } else if read.fe().bit_is_set() {
+                error = Some(ReadErrorType::Framing);
+            } else if read.oe().bit_is_set() {
+                error = Some(ReadErrorType::Overrun);
+                // if we get an overrun - there's still data there
+                buffer[bytes_read] = read.data().bits();
+                bytes_read += 1;
+            }
 
             if let Some(err_type) = error {
                 return Err(Other(ReadError {
@@ -187,6 +214,7 @@ pub(crate) fn read_full_blocking<D: UartDevice>(
 pub struct Reader<D: UartDevice, P: ValidUartPinout<D>> {
     pub(super) device: D,
     pub(super) pins: P,
+    pub(super) read_error: Option<ReadErrorType>,
 }
 
 impl<D: UartDevice, P: ValidUartPinout<D>> Reader<D, P> {
@@ -194,6 +222,7 @@ impl<D: UartDevice, P: ValidUartPinout<D>> Reader<D, P> {
     /// This function reads as long as it can. As soon that the FIFO is empty, if :
     /// - 0 bytes were read, a WouldBlock Error is returned
     /// - some bytes were read, it is deemed to be a success
+    ///
     /// Upon success, it will return how many bytes were read.
     pub fn read_raw<'b>(&self, buffer: &'b mut [u8]) -> nb::Result<usize, ReadError<'b>> {
         read_raw(&self.device, buffer)
@@ -215,6 +244,36 @@ impl<D: UartDevice, P: ValidUartPinout<D>> Reader<D, P> {
     /// Disables the Receive Interrupt.
     pub fn disable_rx_interrupt(&mut self) {
         disable_rx_interrupt(&self.device)
+    }
+}
+
+impl<D: UartDevice, P: ValidUartPinout<D>> embedded_io::ErrorType for Reader<D, P> {
+    type Error = ReadErrorType;
+}
+
+impl<D: UartDevice, P: ValidUartPinout<D>> embedded_io::Read for Reader<D, P> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        // If the last read stored an error, report it now
+        if let Some(err) = self.read_error.take() {
+            return Err(err);
+        }
+        match nb::block!(self.read_raw(buf)) {
+            Ok(bytes_read) => Ok(bytes_read),
+            Err(err) if !err.discarded.is_empty() => {
+                // If an error was reported but some bytes were already read,
+                // return the data now and store the error for the next
+                // invocation.
+                self.read_error = Some(err.err_type);
+                Ok(err.discarded.len())
+            }
+            Err(err) => Err(err.err_type),
+        }
+    }
+}
+
+impl<D: UartDevice, P: ValidUartPinout<D>> embedded_io::ReadReady for Reader<D, P> {
+    fn read_ready(&mut self) -> Result<bool, Self::Error> {
+        Ok(is_readable(&self.device))
     }
 }
 

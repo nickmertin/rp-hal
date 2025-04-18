@@ -21,6 +21,7 @@ pub struct UartPeripheral<S: State, D: UartDevice, P: ValidUartPinout<D>> {
     device: D,
     _state: S,
     pins: P,
+    read_error: Option<ReadErrorType>,
 }
 
 impl<S: State, D: UartDevice, P: ValidUartPinout<D>> UartPeripheral<S, D, P> {
@@ -29,6 +30,7 @@ impl<S: State, D: UartDevice, P: ValidUartPinout<D>> UartPeripheral<S, D, P> {
             device: self.device,
             pins: self.pins,
             _state: state,
+            read_error: None,
         }
     }
 
@@ -48,6 +50,7 @@ impl<D: UartDevice, P: ValidUartPinout<D>> UartPeripheral<Disabled, D, P> {
             device,
             _state: Disabled,
             pins,
+            read_error: None,
         }
     }
 
@@ -88,6 +91,7 @@ impl<D: UartDevice, P: ValidUartPinout<D>> UartPeripheral<Disabled, D, P> {
             device,
             pins,
             _state: Enabled,
+            read_error: None,
         })
     }
 }
@@ -174,6 +178,7 @@ impl<D: UartDevice, P: ValidUartPinout<D>> UartPeripheral<Enabled, D, P> {
     /// This function writes as long as it can. As soon that the FIFO is full, if :
     /// - 0 bytes were written, a WouldBlock Error is returned
     /// - some bytes were written, it is deemed to be a success
+    ///
     /// Upon success, the remaining slice is returned.
     pub fn write_raw<'d>(&self, data: &'d [u8]) -> nb::Result<&'d [u8], Infallible> {
         super::writer::write_raw(&self.device, data)
@@ -183,21 +188,59 @@ impl<D: UartDevice, P: ValidUartPinout<D>> UartPeripheral<Enabled, D, P> {
     /// This function reads as long as it can. As soon that the FIFO is empty, if :
     /// - 0 bytes were read, a WouldBlock Error is returned
     /// - some bytes were read, it is deemed to be a success
+    ///
     /// Upon success, it will return how many bytes were read.
     pub fn read_raw<'b>(&self, buffer: &'b mut [u8]) -> nb::Result<usize, ReadError<'b>> {
         super::reader::read_raw(&self.device, buffer)
     }
 
     /// Writes bytes to the UART.
+    ///
     /// This function blocks until the full buffer has been sent.
     pub fn write_full_blocking(&self, data: &[u8]) {
         super::writer::write_full_blocking(&self.device, data);
     }
 
     /// Reads bytes from the UART.
+    ///
     /// This function blocks until the full buffer has been received.
     pub fn read_full_blocking(&self, buffer: &mut [u8]) -> Result<(), ReadErrorType> {
         super::reader::read_full_blocking(&self.device, buffer)
+    }
+
+    /// Initiates a break
+    ///
+    /// If transmitting, this takes effect immediately after the current byte has completed.  
+    /// For proper execution of the break command, this must be held for at least 2 complete frames
+    /// worth of time.
+    ///
+    /// <div class="warning">The device won’t be able to send anything while breaking.</div>
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use rp2040_hal::uart::{Pins, ValidUartPinout, Enabled, UartPeripheral};
+    /// # use rp2040_hal::pac::UART0;
+    /// # use rp2040_hal::timer::Timer;
+    /// # use rp2040_hal::typelevel::OptionTNone;
+    /// # use embedded_hal_0_2::blocking::delay::DelayUs;
+    /// # type PINS = Pins<OptionTNone, OptionTNone, OptionTNone, OptionTNone>;
+    /// # fn example(mut serial: UartPeripheral<Enabled, rp2040_hal::pac::UART0, PINS>, mut timer: Timer) {
+    /// serial.lowlevel_break_start();
+    /// // at 115_200Bps on 8N1 configuration, 20bits takes (20*10⁶)/115200 = 173.611…μs.
+    /// timer.delay_us(175);
+    /// serial.lowlevel_break_stop();
+    /// }
+    /// ```
+    pub fn lowlevel_break_start(&mut self) {
+        self.device.uartlcr_h().modify(|_, w| w.brk().set_bit());
+    }
+
+    /// Terminates a break condition.
+    ///
+    /// See `lowlevel_break_start` for more details.
+    pub fn lowlevel_break_stop(&mut self) {
+        self.device.uartlcr_h().modify(|_, w| w.brk().clear_bit());
     }
 
     /// Join the reader and writer halves together back into the original Uart peripheral.
@@ -211,6 +254,7 @@ impl<D: UartDevice, P: ValidUartPinout<D>> UartPeripheral<Enabled, D, P> {
             device: reader.device,
             _state: Enabled,
             pins: reader.pins,
+            read_error: reader.read_error,
         }
     }
 }
@@ -221,6 +265,7 @@ impl<P: ValidUartPinout<UART0>> UartPeripheral<Enabled, UART0, P> {
         let reader = Reader {
             device: self.device,
             pins: self.pins,
+            read_error: self.read_error,
         };
         // Safety: reader and writer will never write to the same address
         let device_copy = unsafe { Peripherals::steal().UART0 };
@@ -239,6 +284,7 @@ impl<P: ValidUartPinout<UART1>> UartPeripheral<Enabled, UART1, P> {
         let reader = Reader {
             device: self.device,
             pins: self.pins,
+            read_error: self.read_error,
         };
         // Safety: reader and writer will never write to the same address
         let device_copy = unsafe { Peripherals::steal().UART1 };
@@ -266,13 +312,15 @@ fn calculate_baudrate_dividers(
         .and_then(|r| r.checked_div(wanted_baudrate.to_Hz()))
         .ok_or(Error::BadArgument)?;
 
-    Ok(match (baudrate_div >> 7, ((baudrate_div & 0x7F) + 1) / 2) {
-        (0, _) => (1, 0),
+    Ok(
+        match (baudrate_div >> 7, (baudrate_div & 0x7F).div_ceil(2)) {
+            (0, _) => (1, 0),
 
-        (int_part, _) if int_part >= 65535 => (65535, 0),
+            (int_part, _) if int_part >= 65535 => (65535, 0),
 
-        (int_part, frac_part) => (int_part as u16, frac_part as u16),
-    })
+            (int_part, frac_part) => (int_part as u16, frac_part as u16),
+        },
+    )
 }
 
 /// Baudrate configuration. Code loosely inspired from the C SDK.
@@ -430,16 +478,48 @@ impl<D: UartDevice, P: ValidUartPinout<D>> embedded_io::ErrorType
 }
 impl<D: UartDevice, P: ValidUartPinout<D>> embedded_io::Read for UartPeripheral<Enabled, D, P> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-        nb::block!(self.read_raw(buf)).map_err(|e| e.err_type)
+        // If the last read stored an error, report it now
+        if let Some(err) = self.read_error.take() {
+            return Err(err);
+        }
+        match nb::block!(self.read_raw(buf)) {
+            Ok(bytes_read) => Ok(bytes_read),
+            Err(err) if !err.discarded.is_empty() => {
+                // If an error was reported but some bytes were already read,
+                // return the data now and store the error for the next
+                // invocation.
+                self.read_error = Some(err.err_type);
+                Ok(err.discarded.len())
+            }
+            Err(err) => Err(err.err_type),
+        }
     }
 }
+
+impl<D: UartDevice, P: ValidUartPinout<D>> embedded_io::ReadReady
+    for UartPeripheral<Enabled, D, P>
+{
+    fn read_ready(&mut self) -> Result<bool, Self::Error> {
+        Ok(self.uart_is_readable() || self.read_error.is_some())
+    }
+}
+
 impl<D: UartDevice, P: ValidUartPinout<D>> embedded_io::Write for UartPeripheral<Enabled, D, P> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-        self.write_full_blocking(buf);
-        Ok(buf.len())
+        // Blocks if and only if no bytes can be written.
+        let remaining = nb::block!(super::writer::write_raw(&self.device, buf)).unwrap(); // Infallible
+        Ok(buf.len() - remaining.len())
     }
     fn flush(&mut self) -> Result<(), Self::Error> {
         nb::block!(super::writer::transmit_flushed(&self.device)).unwrap(); // Infallible
         Ok(())
+    }
+}
+
+impl<D: UartDevice, P: ValidUartPinout<D>> embedded_io::WriteReady
+    for UartPeripheral<Enabled, D, P>
+{
+    fn write_ready(&mut self) -> Result<bool, Self::Error> {
+        Ok(self.uart_is_writable())
     }
 }

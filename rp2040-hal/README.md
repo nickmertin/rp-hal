@@ -28,13 +28,7 @@
   <summary><h2 style="display: inline-block">Table of Contents</h2></summary>
   <ol>
     <li><a href="#introduction">Introduction</a></li>
-   <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
+    <li><a href="#getting-started">Getting Started</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
@@ -70,7 +64,7 @@ https://github.com/rp-rs/rp-hal-boards/ for more details.
 To include this crate in your project, amend your `Cargo.toml` file to include
 
 ```toml
-rp2040-hal = "0.10.0"
+rp2040-hal = "0.11.0"
 ```
 
 To obtain a copy of the source code (e.g. if you want to propose a bug-fix or
@@ -81,7 +75,9 @@ $ git clone https://github.com/rp-rs/rp-hal.git
 ```
 
 For details on how to program an RP2040 microcontroller, see the [top-level
-rp-hal README](https://github.com/rp-rs/rp-hal/).
+rp-hal README](https://github.com/rp-rs/rp-hal/). To see this HAL in use,
+see either the examples in this repository, or the examples included with each
+BSP.
 
 <!-- ROADMAP -->
 ## Roadmap
@@ -111,21 +107,24 @@ appreciated**.
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-
-
 <!-- LICENSE -->
 ## License
 
-Distributed under the MIT OR Apache2.0 License. See `MIT` or `APACHE2.0` for more information.
+The contents of this repository are dual-licensed under the _MIT OR Apache 2.0_
+License. That means you can choose either the MIT license or the Apache 2.0
+license when you re-use this code. See [`LICENSE-MIT`](./LICENSE-MIT) or
+[`LICENSE-APACHE`](./LICENSE-APACHE) for more information on each specific
+license. Our Apache 2.0 notices can be found in [`NOTICE`](./NOTICE).
 
-
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
 
 <!-- CONTACT -->
 ## Contact
 
-Project Link: [https://github.com/rp-rs/rp-hal/issues](https://github.com/rp-rs/rp-hal/issues)
-Matrix: [#rp-rs:matrix.org](https://matrix.to/#/#rp-rs:matrix.org)
-
+* Project Link: [https://github.com/rp-rs/rp-hal/issues](https://github.com/rp-rs/rp-hal/issues)
+* Matrix: [#rp-rs:matrix.org](https://matrix.to/#/#rp-rs:matrix.org)
 
 <!-- ACKNOWLEDGEMENTS -->
 ## Acknowledgements

@@ -73,7 +73,7 @@ You may also want to install these helpful tools:
 # Useful to creating UF2 images for the RP2040 USB Bootloader
 cargo install elf2uf2-rs --locked
 # Useful for flashing over the SWD pins using a supported JTAG probe
-cargo install probe-rs --features cli --locked
+cargo install --locked probe-rs-tools
 ```
 
 ## Packages
@@ -184,8 +184,11 @@ specified 'runner'. As the 'runner' is the elf2uf2-rs tool, it will build a UF2
 file and copy it to your RP2040.
 
 ```console
-$ cargo run --release --example pwm_blink
+$ cargo run --release --features "critical-section-impl,rt,defmt" --example pwm_blink
 ```
+
+(The `pwm_blink` example doesn't need all these feature flags. They are listed here
+so you can use the same command for all examples.)
 
 ### Loading with probe-rs
 [probe-rs](https://github.com/probe-rs/probe-rs) is a library and a
@@ -196,8 +199,10 @@ probe-rs can autodetect your debug probe, which can make it easier to use.
 *Step 1* - Install `probe-rs`:
 
 ```console
-$ cargo install probe-rs --features cli --locked
+$ cargo install --locked probe-rs-tools
 ```
+
+Alternatively, follow the installation instructions on https://probe.rs/.
 
 *Step 2* - Make sure your .cargo/config contains the following:
 
@@ -283,13 +288,15 @@ to intervene to uphold that code of conduct.
 <!-- LICENSE -->
 ## License
 
-The contents of this repository are dual-licensed under the _MIT OR Apache
-2.0_ License. That means you can choose either the MIT license or the
-Apache-2.0 license when you re-use this code. See `MIT` or `APACHE2.0` for more
-information on each specific license.
+The contents of this repository are dual-licensed under the _MIT OR Apache 2.0_
+License. That means you can choose either the MIT license or the Apache 2.0
+license when you re-use this code. See [`LICENSE-MIT`](./LICENSE-MIT) or
+[`LICENSE-APACHE`](./LICENSE-APACHE) for more information on each specific
+license. Our Apache 2.0 notices can be found in [`NOTICE`](./NOTICE).
 
-Any submissions to this project (e.g. as Pull Requests) must be made available
-under these terms.
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
 
 <!-- CONTACT -->
 ## Contact

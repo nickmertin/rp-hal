@@ -9,8 +9,7 @@ use fugit::{HertzU32, RateExtU32};
 use futures::FutureExt;
 use heapless::Vec;
 
-use rp2040_hal::{
-    self as hal,
+use hal::{
     clocks::init_clocks_and_plls,
     gpio::{FunctionI2C, Pin, PullUp},
     i2c::{Error, ValidAddress},
@@ -18,6 +17,10 @@ use rp2040_hal::{
     watchdog::Watchdog,
     Clock,
 };
+#[cfg(feature = "rp2040")]
+use rp2040_hal as hal;
+#[cfg(feature = "rp235x")]
+use rp235x_hal as hal;
 
 use super::{Controller, FIFOBuffer, Generator, Target, TargetState};
 
@@ -30,8 +33,7 @@ pub struct State {
 }
 
 pub fn run_test(f: impl Future) {
-    let runtime = nostd_async::Runtime::new();
-    nostd_async::Task::new(f).spawn(&runtime).join();
+    super::test_executor::execute(f);
 }
 async fn wait_with(payload: &RefCell<TargetState>, mut f: impl FnMut(&TargetState) -> bool) {
     while f(payload.borrow().deref()) {
@@ -50,9 +52,6 @@ async fn wait_with(payload: &RefCell<TargetState>, mut f: impl FnMut(&TargetStat
 }
 
 pub fn setup<T: ValidAddress>(xtal_freq_hz: u32, addr: T) -> State {
-    unsafe {
-        hal::sio::spinlock_reset();
-    }
     let mut pac = pac::Peripherals::take().unwrap();
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
 
@@ -101,10 +100,10 @@ pub fn setup<T: ValidAddress>(xtal_freq_hz: u32, addr: T) -> State {
     );
 
     unsafe {
-        pac::NVIC::unpend(hal::pac::Interrupt::I2C0_IRQ);
-        pac::NVIC::unmask(hal::pac::Interrupt::I2C0_IRQ);
-        pac::NVIC::unpend(hal::pac::Interrupt::I2C1_IRQ);
-        pac::NVIC::unmask(hal::pac::Interrupt::I2C1_IRQ);
+        cortex_m::peripheral::NVIC::unpend(hal::pac::Interrupt::I2C0_IRQ);
+        cortex_m::peripheral::NVIC::unmask(hal::pac::Interrupt::I2C0_IRQ);
+        cortex_m::peripheral::NVIC::unpend(hal::pac::Interrupt::I2C1_IRQ);
+        cortex_m::peripheral::NVIC::unmask(hal::pac::Interrupt::I2C1_IRQ);
     }
 
     State {

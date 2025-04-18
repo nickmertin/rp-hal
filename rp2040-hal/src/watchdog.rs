@@ -4,7 +4,7 @@
 //! processor if software gets stuck in an infinite loop. The programmer must periodically write a value to the watchdog to
 //! stop it from reaching zero.
 //!
-//! See [Chapter 4 Section 7](https://datasheets.raspberrypi.org/rp2040/rp2040_datasheet.pdf) of the datasheet for more details
+//! See [Chapter 4 Section 7](https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf) of the datasheet for more details
 //!
 //! ## Usage
 //! ```no_run
@@ -32,7 +32,7 @@
 //! // Stop feeding, now we'll reset
 //! loop {}
 //! ```
-//! See [examples/watchdog.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples/watchdog.rs) for a more complete example
+//! See [examples/watchdog.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples/src/bin/watchdog.rs) for a more complete example
 
 // Embedded HAL 1.0.0 doesn't have an ADC trait, so use the one from 0.2
 use embedded_hal_0_2::watchdog;

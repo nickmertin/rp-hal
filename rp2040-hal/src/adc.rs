@@ -1,6 +1,6 @@
 //! Analog-Digital Converter (ADC)
 //!
-//! See [Chapter 4 Section 9](https://datasheets.raspberrypi.org/rp2040/rp2040_datasheet.pdf) of the datasheet for more details
+//! See [Chapter 4 Section 9](https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf) of the datasheet for more details
 //!
 //! ## Usage
 //!
@@ -38,7 +38,7 @@
 //! let temperature_adc_counts: u16 = adc.read(&mut temperature_sensor).unwrap();
 //! ```
 //!
-//! See [examples/adc.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples/adc.rs) and
+//! See [examples/adc.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples/src/bin/adc.rs) and
 //! [pimoroni_pico_explorer_showcase.rs](https://github.com/rp-rs/rp-hal-boards/tree/main/boards/pimoroni-pico-explorer/examples/pimoroni_pico_explorer_showcase.rs) for more complete examples
 //!
 //! ### Free running mode with FIFO
@@ -69,7 +69,7 @@
 //!   }
 //! }
 //! ```
-//! See [examples/adc_fifo_poll.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples/adc_fifo_poll.rs) for a more complete example.
+//! See [examples/adc_fifo_poll.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples/src/bin/adc_fifo_poll.rs) for a more complete example.
 //!
 //! ### Using DMA
 //!
@@ -117,7 +117,7 @@
 //! //...
 //!
 //! ```
-//! //! See [examples/adc_fifo_dma.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples/adc_fifo_dma.rs) for a more complete example.
+//! //! See [examples/adc_fifo_dma.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples/src/bin/adc_fifo_dma.rs) for a more complete example.
 //!
 //! ### Free running mode without FIFO
 //!
@@ -404,10 +404,14 @@ impl Adc {
     ///
     /// Also returns immediately if start_many is set, to avoid indefinite blocking.
     pub fn wait_ready(&self) {
-        let cs = self.device.cs().read();
-        while !cs.ready().bit_is_set() && !cs.start_many().bit_is_set() {
+        while !self.is_ready_or_free_running() {
             cortex_m::asm::nop();
         }
+    }
+
+    fn is_ready_or_free_running(&self) -> bool {
+        let cs = self.device.cs().read();
+        cs.ready().bit_is_set() || cs.start_many().bit_is_set()
     }
 
     /// Returns true if the ADC is ready for the next conversion.
@@ -451,7 +455,7 @@ where
 
 /// Used to configure & build an [`AdcFifo`]
 ///
-/// See [`Adc::build_fifo`] for details, as well as the `adc_fifo_*` [examples](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples).
+/// See [`Adc::build_fifo`] for details, as well as the `adc_fifo_*` [examples](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples).
 pub struct AdcFifoBuilder<'a, Word> {
     adc: &'a mut Adc,
     marker: PhantomData<Word>,
@@ -809,14 +813,14 @@ impl<'a, Word> AdcFifo<'a, Word> {
     }
 }
 
-impl<'a> AdcFifo<'a, u16> {
+impl AdcFifo<'_, u16> {
     /// Read a single value from the fifo (u16 version, not shifted)
     pub fn read(&mut self) -> u16 {
         self.read_from_fifo()
     }
 }
 
-impl<'a> AdcFifo<'a, u8> {
+impl AdcFifo<'_, u8> {
     /// Read a single value from the fifo (u8 version, shifted)
     ///
     /// Also see [`AdcFifoBuilder::shift_8bit`].
@@ -869,7 +873,7 @@ where
     B: AdcChannel,
 {
     fn from(pins: (&A, &B)) -> Self {
-        Self(1 << pins.0.channel() | 1 << pins.1.channel())
+        Self((1 << pins.0.channel()) | (1 << pins.1.channel()))
     }
 }
 
@@ -880,7 +884,7 @@ where
     C: AdcChannel,
 {
     fn from(pins: (&A, &B, &C)) -> Self {
-        Self(1 << pins.0.channel() | 1 << pins.1.channel() | 1 << pins.2.channel())
+        Self((1 << pins.0.channel()) | (1 << pins.1.channel()) | (1 << pins.2.channel()))
     }
 }
 
@@ -893,10 +897,10 @@ where
 {
     fn from(pins: (&A, &B, &C, &D)) -> Self {
         Self(
-            1 << pins.0.channel()
-                | 1 << pins.1.channel()
-                | 1 << pins.2.channel()
-                | 1 << pins.3.channel(),
+            (1 << pins.0.channel())
+                | (1 << pins.1.channel())
+                | (1 << pins.2.channel())
+                | (1 << pins.3.channel()),
         )
     }
 }
@@ -911,11 +915,11 @@ where
 {
     fn from(pins: (&A, &B, &C, &D, &E)) -> Self {
         Self(
-            1 << pins.0.channel()
-                | 1 << pins.1.channel()
-                | 1 << pins.2.channel()
-                | 1 << pins.3.channel()
-                | 1 << pins.4.channel(),
+            (1 << pins.0.channel())
+                | (1 << pins.1.channel())
+                | (1 << pins.2.channel())
+                | (1 << pins.3.channel())
+                | (1 << pins.4.channel()),
         )
     }
 }

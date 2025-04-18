@@ -6,7 +6,7 @@
 //!
 //! Each of the 4 alarms can match on the lower 32 bits of Counter and trigger an interrupt.
 //!
-//! See [Chapter 4 Section 6](https://datasheets.raspberrypi.org/rp2040/rp2040_datasheet.pdf) of the datasheet for more details.
+//! See [Chapter 4 Section 6](https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf) of the datasheet for more details.
 
 use core::sync::atomic::{AtomicU8, Ordering};
 use fugit::{MicrosDurationU32, MicrosDurationU64, TimerInstantU64};
@@ -88,9 +88,9 @@ impl Timer {
     }
 
     /// Initialized a Count Down instance without starting it.
-    pub fn count_down(&self) -> CountDown<'_> {
+    pub fn count_down(&self) -> CountDown {
         CountDown {
-            timer: self,
+            timer: *self,
             period: MicrosDurationU64::nanos(0),
             next_end: None,
         }
@@ -213,13 +213,13 @@ impl embedded_hal::delay::DelayNs for Timer {
 /// // Cancel it immediately
 /// count_down.cancel();
 /// ```
-pub struct CountDown<'timer> {
-    timer: &'timer Timer,
+pub struct CountDown {
+    timer: Timer,
     period: MicrosDurationU64,
     next_end: Option<u64>,
 }
 
-impl embedded_hal_0_2::timer::CountDown for CountDown<'_> {
+impl embedded_hal_0_2::timer::CountDown for CountDown {
     type Time = MicrosDurationU64;
 
     fn start<T>(&mut self, count: T)
@@ -250,9 +250,9 @@ impl embedded_hal_0_2::timer::CountDown for CountDown<'_> {
     }
 }
 
-impl embedded_hal_0_2::timer::Periodic for CountDown<'_> {}
+impl embedded_hal_0_2::timer::Periodic for CountDown {}
 
-impl embedded_hal_0_2::timer::Cancel for CountDown<'_> {
+impl embedded_hal_0_2::timer::Cancel for CountDown {
     type Error = &'static str;
 
     fn cancel(&mut self) -> Result<(), Self::Error> {
@@ -292,7 +292,7 @@ pub trait Alarm: Sealed {
     /// called, this will trigger interrupt whenever this timestamp is reached.
     ///
     /// The RP2040 is unable to schedule an event taking place in more than
-    /// `u32::max_value()` microseconds.
+    /// `u32::MAX` microseconds.
     ///
     /// [enable_interrupt]: #method.enable_interrupt
     fn schedule_at(&mut self, timestamp: Instant) -> Result<(), ScheduleAlarmError>;
@@ -412,13 +412,13 @@ macro_rules! impl_alarm {
             /// ` whenever this timestamp is reached.
             ///
             /// The RP2040 is unable to schedule an event taking place in more than
-            /// `u32::max_value()` microseconds.
+            /// `u32::MAX` microseconds.
             ///
             /// [enable_interrupt]: #method.enable_interrupt
             fn schedule_at(&mut self, timestamp: Instant) -> Result<(), ScheduleAlarmError> {
                 let now = self.0.get_counter();
                 let duration = timestamp.ticks().saturating_sub(now.ticks());
-                if duration > u32::max_value().into() {
+                if duration > u32::MAX.into() {
                     return Err(ScheduleAlarmError::AlarmTooLate);
                 }
 
@@ -464,7 +464,7 @@ macro_rules! impl_alarm {
 /// Errors that can be returned from any of the `AlarmX::schedule` methods.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ScheduleAlarmError {
-    /// Alarm time is too high. Should not be more than `u32::max_value()` in the future.
+    /// Alarm time is too high. Should not be more than `u32::MAX` in the future.
     AlarmTooLate,
 }
 

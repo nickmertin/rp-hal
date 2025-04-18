@@ -3,7 +3,7 @@
 //! [`Spi`] is the main struct exported by this module, representing a configured Spi bus. See its
 //! docs for more information on its type parameters.
 //!
-//! See [Chapter 4 Section 4](https://datasheets.raspberrypi.org/rp2040/rp2040_datasheet.pdf) for more details
+//! See [Chapter 4 Section 4](https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf) for more details
 //!
 //! ## Usage
 //!
@@ -158,16 +158,17 @@ impl Sealed for u16 {}
 ///
 /// `Spi` has four generic parameters:
 /// - `S`: a typestate for whether the bus is [`Enabled`] or [`Disabled`]. Upon initial creation,
-/// the bus is [`Disabled`]. You will then need to initialize it as either a main (master) or sub
-/// (slave) device, providing the necessary configuration, at which point it will become [`Enabled`].
+///   the bus is [`Disabled`]. You will then need to initialize it as either a main (master) or sub
+///   (slave) device, providing the necessary configuration, at which point it will become [`Enabled`].
 /// - `D`: Which of the concrete Spi peripherals is being used, [`pac::SPI0`] or [`pac::SPI1`]
 /// - `P`: Which pins are being used to configure the Spi peripheral `D`. A table of valid
-/// pinouts for each Spi peripheral can be found in section 1.4.3 of the RP2040 datasheet.
-/// The [`ValidSpiPinout`] trait is implemented for tuples of pin types that follow the layout:
+///   pinouts for each Spi peripheral can be found in section 1.4.3 of the RP2040 datasheet.
+///   The [`ValidSpiPinout`] trait is implemented for tuples of pin types that follow the layout:
 ///     - `(Tx, Sck)` (i.e. first the "Tx"/"MOSI" pin, then the "Sck"/"Clock" pin)
 ///     - `(Tx, Rx, Sck)` (i.e. first "Tx"/"MOSI", then "Rx"/"MISO", then "Sck"/"Clock" pin)
-/// If you select an invalid layout, you will get a compile error that `P` does not implement
-/// [`ValidSpiPinout`] for your specified [`SpiDevice`] peripheral `D`
+///
+///   If you select an invalid layout, you will get a compile error that `P` does not implement
+///   [`ValidSpiPinout`] for your specified [`SpiDevice`] peripheral `D`
 /// - `DS`: The "data size", i.e. the number of bits transferred per data frame. Defaults to 8.
 ///
 /// In most cases you won't have to specify these types manually and can let the compiler infer
@@ -246,28 +247,11 @@ impl<S: State, D: SpiDevice, P: ValidSpiPinout<D>, const DS: u8> Spi<S, D, P, DS
         // Return the frequency we were able to achieve
         (freq_in / (prescale as u32 * (1 + postdiv as u32))).Hz()
     }
-}
 
-impl<D: SpiDevice, P: ValidSpiPinout<D>, const DS: u8> Spi<Disabled, D, P, DS> {
-    /// Create new not initialized Spi bus. Initialize it with [`.init`][Self::init]
-    /// or [`.init_slave`][Self::init_slave].
-    ///
-    /// Valid pin sets are in the form of `(Tx, Sck)` or `(Tx, Rx, Sck)`
-    ///
-    /// If you pins are dynamically identified (`Pin<DynPinId, _, _>`) they will first need to pass
-    /// validation using their corresponding [`ValidatedPinXX`](ValidatedPinTx).
-    pub fn new(device: D, pins: P) -> Spi<Disabled, D, P, DS> {
-        Spi {
-            device,
-            pins,
-            state: PhantomData,
-        }
-    }
-
-    /// Set format and datasize
-    fn set_format(&mut self, data_bits: u8, frame_format: FrameFormat) {
+    /// Set format
+    pub fn set_format(&mut self, frame_format: FrameFormat) {
         self.device.sspcr0().modify(|_, w| unsafe {
-            w.dss().bits(data_bits - 1).frf().bits(match &frame_format {
+            w.dss().bits(DS - 1).frf().bits(match &frame_format {
                 FrameFormat::MotorolaSpi(_) => 0x00,
                 FrameFormat::TexasInstrumentsSynchronousSerial => 0x01,
                 FrameFormat::NationalSemiconductorMicrowire => 0x10,
@@ -285,6 +269,23 @@ impl<D: SpiDevice, P: ValidSpiPinout<D>, const DS: u8> Spi<Disabled, D, P, DS> {
             }
             w
         });
+    }
+}
+
+impl<D: SpiDevice, P: ValidSpiPinout<D>, const DS: u8> Spi<Disabled, D, P, DS> {
+    /// Create new not initialized Spi bus. Initialize it with [`.init`][Self::init]
+    /// or [`.init_slave`][Self::init_slave].
+    ///
+    /// Valid pin sets are in the form of `(Tx, Sck)` or `(Tx, Rx, Sck)`
+    ///
+    /// If your pins are dynamically identified (`Pin<DynPinId, _, _>`) they will first need to pass
+    /// validation using their corresponding [`ValidatedPinXX`](ValidatedPinTx).
+    pub fn new(device: D, pins: P) -> Spi<Disabled, D, P, DS> {
+        Spi {
+            device,
+            pins,
+            state: PhantomData,
+        }
     }
 
     /// Set master/slave
@@ -308,7 +309,7 @@ impl<D: SpiDevice, P: ValidSpiPinout<D>, const DS: u8> Spi<Disabled, D, P, DS> {
         self.device.reset_bring_up(resets);
 
         self.set_baudrate(peri_frequency, baudrate);
-        self.set_format(DS, frame_format);
+        self.set_format(frame_format);
         self.set_slave(slave);
         // Always enable DREQ signals -- harmless if DMA is not listening
         self.device

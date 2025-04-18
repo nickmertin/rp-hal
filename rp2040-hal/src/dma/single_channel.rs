@@ -31,6 +31,11 @@ pub trait SingleChannel: Sealed {
         }
     }
 
+    /// Check if the DMA_IRQ_0 signal for this channel is enabled.
+    fn is_enabled_irq0(&mut self) -> bool {
+        unsafe { ((*DMA::ptr()).inte0().read().bits() & (1 << self.id())) != 0 }
+    }
+
     #[deprecated(note = "Renamed to disable_irq0")]
     /// Disables the DMA_IRQ_0 signal for this channel.
     fn unlisten_irq0(&mut self) {
@@ -73,6 +78,11 @@ pub trait SingleChannel: Sealed {
         unsafe {
             write_bitmask_set((*DMA::ptr()).inte1().as_ptr(), 1 << self.id());
         }
+    }
+
+    /// Check if the DMA_IRQ_1 signal for this channel is enabled.
+    fn is_enabled_irq1(&mut self) -> bool {
+        unsafe { ((*DMA::ptr()).inte1().read().bits() & (1 << self.id())) != 0 }
     }
 
     #[deprecated(note = "Renamed to disable_irq1")]
@@ -241,7 +251,7 @@ impl<CH: SingleChannel> ChannelConfig for CH {
     fn start_both<CH2: SingleChannel>(&mut self, other: &mut CH2) {
         // Safety: The write does not interfere with any other writes, it only affects this
         // channel and other (which we have an exclusive borrow of).
-        let channel_flags = 1 << self.id() | 1 << other.id();
+        let channel_flags = (1 << self.id()) | (1 << other.id());
         unsafe { &*crate::pac::DMA::ptr() }
             .multi_chan_trigger()
             .write(|w| unsafe { w.bits(channel_flags) });

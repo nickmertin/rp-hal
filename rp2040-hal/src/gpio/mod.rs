@@ -28,7 +28,7 @@
 //! let button_pin = pins.gpio23.into_pull_down_input();
 //! let button2_pin = pins.gpio22.into_pull_up_input();
 //! ```
-//! See [examples/gpio_in_out.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal/examples/gpio_in_out.rs) for a more practical example
+//! See [examples/gpio_in_out.rs](https://github.com/rp-rs/rp-hal/tree/main/rp2040-hal-examples/src/bin/gpio_in_out.rs) for a more practical example
 
 // Design Notes:
 //
@@ -158,6 +158,7 @@ pub enum OutputOverride {
 
 /// Represents a pin, with a given ID (e.g. Gpio3), a given function (e.g. FunctionUart) and a given pull type
 /// (e.g. pull-down).
+#[derive(Debug)]
 pub struct Pin<I: PinId, F: func::Function, P: PullType> {
     id: I,
     function: F,
@@ -947,8 +948,8 @@ where
     }
 }
 
-impl<'a, I: PinId, F: func::Function, P: PullType> embedded_hal_0_2::digital::v2::InputPin
-    for AsInputPin<'a, I, F, P>
+impl<I: PinId, F: func::Function, P: PullType> embedded_hal_0_2::digital::v2::InputPin
+    for AsInputPin<'_, I, F, P>
 {
     type Error = core::convert::Infallible;
 
@@ -1081,6 +1082,7 @@ macro_rules! gpio {
     (struct: $bank:ident $prefix:ident $($PXi:ident, $id:expr, $func:ident, $pull_type:ident),*) => {
         paste::paste!{
                 /// Collection of all the individual [`Pin`]s
+                #[derive(Debug)]
                 pub struct Pins {
                     _io: [<IO_ $bank:upper>],
                     _pads: [<PADS_ $bank:upper>],
@@ -1465,8 +1467,8 @@ mod eh1 {
     use embedded_hal::digital::{ErrorType, InputPin, OutputPin, StatefulOutputPin};
 
     use super::{
-        func, AnyPin, AsInputPin, Error, FunctionSio, InOutPin, Pin, PinId, PullType, SioConfig,
-        SioInput, SioOutput,
+        func, AnyPin, AsInputPin, Error, FunctionSio, InOutPin, OutputEnableOverride, Pin, PinId,
+        PullType, SioConfig, SioInput, SioOutput,
     };
 
     impl<I, P, S> ErrorType for Pin<I, FunctionSio<S>, P>
@@ -1527,7 +1529,7 @@ mod eh1 {
         }
     }
 
-    impl<'a, I, F, P> ErrorType for AsInputPin<'a, I, F, P>
+    impl<I, F, P> ErrorType for AsInputPin<'_, I, F, P>
     where
         I: PinId,
         F: func::Function,
@@ -1536,7 +1538,7 @@ mod eh1 {
         type Error = Error;
     }
 
-    impl<'a, I: PinId, F: func::Function, P: PullType> InputPin for AsInputPin<'a, I, F, P> {
+    impl<I: PinId, F: func::Function, P: PullType> InputPin for AsInputPin<'_, I, F, P> {
         fn is_high(&mut self) -> Result<bool, Self::Error> {
             Ok(self.0._is_high())
         }
@@ -1558,12 +1560,17 @@ mod eh1 {
         I: AnyPin,
     {
         fn set_low(&mut self) -> Result<(), Self::Error> {
-            self.inner._set_low();
+            // The pin is already set to output low but this is inhibited by the override.
+            self.inner
+                .set_output_enable_override(OutputEnableOverride::Enable);
             Ok(())
         }
 
         fn set_high(&mut self) -> Result<(), Self::Error> {
-            self.inner._set_high();
+            // To set the open-drain pin to high, just disable the output driver by configuring the
+            // output override. That way, the DHT11 can still pull the data line down to send its response.
+            self.inner
+                .set_output_enable_override(OutputEnableOverride::Disable);
             Ok(())
         }
     }

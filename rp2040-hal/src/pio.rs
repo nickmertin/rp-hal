@@ -1,11 +1,13 @@
 //! Programmable IO (PIO)
-//! See [Chapter 3 of the datasheet](https://rptl.io/rp2040-datasheet#section_pio) for more details.
+//!
+//! See [Chapter 3 of the datasheet](https://datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf#section_pio) for more details.
+
 use core::ops::Deref;
 use pio::{Instruction, InstructionOperands, Program, SideSet, Wrap};
 
 use crate::{
     atomic_register_access::{write_bitmask_clear, write_bitmask_set},
-    dma::{EndlessReadTarget, EndlessWriteTarget, ReadTarget, WriteTarget},
+    dma::{EndlessReadTarget, EndlessWriteTarget, ReadTarget, TransferSize, Word, WriteTarget},
     gpio::{Function, FunctionPio0, FunctionPio1},
     pac::{self, dma::ch::ch_ctrl_trig::TREQ_SEL_A, pio0::RegisterBlock, PIO0, PIO1},
     resets::SubsystemReset,
@@ -14,8 +16,8 @@ use crate::{
 
 const PIO_INSTRUCTION_COUNT: usize = 32;
 
-impl crate::typelevel::Sealed for PIO0 {}
-impl crate::typelevel::Sealed for PIO1 {}
+impl Sealed for PIO0 {}
+impl Sealed for PIO1 {}
 
 /// PIO Instance
 pub trait PIOExt: Deref<Target = RegisterBlock> + SubsystemReset + Sized + Send + Sealed {
@@ -592,10 +594,10 @@ impl<SM: ValidStateMachine, State> StateMachine<SM, State> {
     ///
     /// The program can be uninstalled to free space once it is no longer used by any state
     /// machine.
-    pub fn uninit(
+    pub fn uninit<RxSize, TxSize>(
         mut self,
-        _rx: Rx<SM>,
-        _tx: Tx<SM>,
+        _rx: Rx<SM, RxSize>,
+        _tx: Tx<SM, TxSize>,
     ) -> (UninitStateMachine<SM>, InstalledProgram<SM::PIO>) {
         self.sm.set_enabled(false);
         (self.sm, self.program)
@@ -1241,7 +1243,7 @@ impl<'sm, P: PIOExt, SM: StateMachineIndex> Synchronize<'sm, (P, SM)> {
     }
 }
 
-impl<'sm, SM: ValidStateMachine> Drop for Synchronize<'sm, SM> {
+impl<SM: ValidStateMachine> Drop for Synchronize<'_, SM> {
     fn drop(&mut self) {
         // Restart the clocks of all state machines specified by the mask.
         // Bits 11:8 of CTRL contain CLKDIV_RESTART.
@@ -1304,17 +1306,17 @@ impl<SM: ValidStateMachine> StateMachine<SM, Running> {
 }
 
 /// PIO RX FIFO handle.
-pub struct Rx<SM: ValidStateMachine> {
+pub struct Rx<SM: ValidStateMachine, RxSize = Word> {
     block: *const RegisterBlock,
-    _phantom: core::marker::PhantomData<SM>,
+    _phantom: core::marker::PhantomData<(SM, RxSize)>,
 }
 
 // Safety: All shared register accesses are atomic.
-unsafe impl<SM: ValidStateMachine + Send> Send for Rx<SM> {}
+unsafe impl<SM: ValidStateMachine + Send, RxSize> Send for Rx<SM, RxSize> {}
 
 // Safety: `Rx` is marked Send so ensure all accesses remain atomic and no new concurrent accesses
 // are added.
-impl<SM: ValidStateMachine> Rx<SM> {
+impl<SM: ValidStateMachine, RxSize: TransferSize> Rx<SM, RxSize> {
     unsafe fn block(&self) -> &pac::pio0::RegisterBlock {
         &*self.block
     }
@@ -1419,12 +1421,21 @@ impl<SM: ValidStateMachine> Rx<SM> {
             );
         }
     }
+
+    /// Set the transfer size used in DMA transfers.
+    pub fn transfer_size<RSZ: TransferSize>(self, size: RSZ) -> Rx<SM, RSZ> {
+        let _ = size;
+        Rx {
+            block: self.block,
+            _phantom: core::marker::PhantomData,
+        }
+    }
 }
 
 // Safety: This only reads from the state machine fifo, so it doesn't
 // interact with rust-managed memory.
-unsafe impl<SM: ValidStateMachine> ReadTarget for Rx<SM> {
-    type ReceivedWord = u32;
+unsafe impl<SM: ValidStateMachine, RxSize: TransferSize> ReadTarget for Rx<SM, RxSize> {
+    type ReceivedWord = RxSize::Type;
 
     fn rx_treq() -> Option<u8> {
         Some(SM::rx_dreq())
@@ -1442,20 +1453,20 @@ unsafe impl<SM: ValidStateMachine> ReadTarget for Rx<SM> {
     }
 }
 
-impl<SM: ValidStateMachine> EndlessReadTarget for Rx<SM> {}
+impl<SM: ValidStateMachine, RxSize: TransferSize> EndlessReadTarget for Rx<SM, RxSize> {}
 
 /// PIO TX FIFO handle.
-pub struct Tx<SM: ValidStateMachine> {
+pub struct Tx<SM: ValidStateMachine, TxSize = Word> {
     block: *const RegisterBlock,
-    _phantom: core::marker::PhantomData<SM>,
+    _phantom: core::marker::PhantomData<(SM, TxSize)>,
 }
 
 // Safety: All shared register accesses are atomic.
-unsafe impl<SM: ValidStateMachine + Send> Send for Tx<SM> {}
+unsafe impl<SM: ValidStateMachine + Send, TxSize> Send for Tx<SM, TxSize> {}
 
 // Safety: `Tx` is marked Send so ensure all accesses remain atomic and no new concurrent accesses
 // are added.
-impl<SM: ValidStateMachine> Tx<SM> {
+impl<SM: ValidStateMachine, TxSize: TransferSize> Tx<SM, TxSize> {
     unsafe fn block(&self) -> &pac::pio0::RegisterBlock {
         &*self.block
     }
@@ -1613,12 +1624,21 @@ impl<SM: ValidStateMachine> Tx<SM> {
             );
         }
     }
+
+    /// Set the transfer size used in DMA transfers.
+    pub fn transfer_size<RSZ: TransferSize>(self, size: RSZ) -> Tx<SM, RSZ> {
+        let _ = size;
+        Tx {
+            block: self.block,
+            _phantom: core::marker::PhantomData,
+        }
+    }
 }
 
 // Safety: This only writes to the state machine fifo, so it doesn't
 // interact with rust-managed memory.
-unsafe impl<SM: ValidStateMachine> WriteTarget for Tx<SM> {
-    type TransmittedWord = u32;
+unsafe impl<SM: ValidStateMachine, TxSize: TransferSize> WriteTarget for Tx<SM, TxSize> {
+    type TransmittedWord = TxSize::Type;
 
     fn tx_treq() -> Option<u8> {
         Some(SM::tx_dreq())
@@ -1636,7 +1656,7 @@ unsafe impl<SM: ValidStateMachine> WriteTarget for Tx<SM> {
     }
 }
 
-impl<SM: ValidStateMachine> EndlessWriteTarget for Tx<SM> {}
+impl<SM: ValidStateMachine, TxSize: TransferSize> EndlessWriteTarget for Tx<SM, TxSize> {}
 
 /// PIO Interrupt controller.
 #[derive(Debug)]
@@ -1646,13 +1666,13 @@ pub struct Interrupt<'a, P: PIOExt, const IRQ: usize> {
 }
 
 // Safety: `Interrupt` provides exclusive access to interrupt registers.
-unsafe impl<'a, P: PIOExt, const IRQ: usize> Send for Interrupt<'a, P, IRQ> {}
+unsafe impl<P: PIOExt, const IRQ: usize> Send for Interrupt<'_, P, IRQ> {}
 
 // Safety: `Interrupt` is marked Send so ensure all accesses remain atomic and no new concurrent
 // accesses are added.
 // `Interrupt` provides exclusive access to `irq_intf` to `irq_inte` for it's state machine, this
 // must remain true to satisfy Send.
-impl<'a, P: PIOExt, const IRQ: usize> Interrupt<'a, P, IRQ> {
+impl<P: PIOExt, const IRQ: usize> Interrupt<'_, P, IRQ> {
     /// Enable interrupts raised by state machines.
     ///
     /// The PIO peripheral has 4 outside visible interrupts that can be raised by the state machines. Note that this
@@ -1979,7 +1999,9 @@ impl<P: PIOExt> PIOBuilder<P> {
     /// defaults to `ShiftDirection::Left`, which is different from the
     /// rp2040 reset value. The alternative [`Self::from_installed_program`],
     /// fixes this.
-    #[deprecated(note = "please use `from_installed_program` instead")]
+    #[deprecated(
+        note = "please use `from_installed_program` instead and update shift direction if necessary"
+    )]
     pub fn from_program(p: InstalledProgram<P>) -> Self {
         PIOBuilder {
             clock_divisor: (1, 0),
