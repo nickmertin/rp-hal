@@ -376,6 +376,14 @@ impl<P: PIOExt> InstalledProgram<P> {
     }
 }
 
+impl<P> Clone for InstalledProgram<P> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<P> Copy for InstalledProgram<P> {}
+
 /// State machine identifier (without a specified PIO block).
 pub trait StateMachineIndex: Send + Sealed {
     /// Numerical index of the state machine (0 to 3).
